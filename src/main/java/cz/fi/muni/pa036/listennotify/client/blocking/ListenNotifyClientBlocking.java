@@ -4,6 +4,9 @@ import cz.fi.muni.pa036.listennotify.api.AbstractListenNotifyClient;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import org.postgresql.PGConnection;
@@ -30,10 +33,10 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
         try {
             conn = ds.getConnection();
             pgConn = conn.unwrap(org.postgresql.PGConnection.class);
+            new NotificationPoller(pgConn).start();
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         }
-        new NotificationPoller(pgConn).start();
     }
     
     @Override
@@ -56,9 +59,11 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
     
     class NotificationPoller extends Thread {
         
-        private PGConnection conn;
+        private final PGConnection conn;
+        private final PGNotification[] EMPTY_NOTIFS = new PGNotification[]{};
         
         public NotificationPoller(PGConnection conn) {
+            Objects.requireNonNull(conn);
             this.conn = conn;
         }
         
@@ -66,11 +71,11 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
         public void run() {
             while (true) {
                 try {
-                    for (PGNotification notification : conn.getNotifications()) {
+                    PGNotification[] notifs = conn.getNotifications();
+                    for (PGNotification notification : (notifs == null ? EMPTY_NOTIFS : notifs)) {
                         queue.add(notification.getParameter());
                     }
-                    Thread.sleep(500);
-                } catch (SQLException | InterruptedException ex) {
+                } catch (SQLException ex) {
                     throw new RuntimeException(ex);
                 }
             }
