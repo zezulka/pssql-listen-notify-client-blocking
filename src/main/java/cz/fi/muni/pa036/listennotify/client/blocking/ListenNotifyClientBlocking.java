@@ -14,13 +14,13 @@ import org.postgresql.ds.PGSimpleDataSource;
  *
  * @author Miloslav Zezulka
  */
-public class ListenNotifyClientNonblocking extends AbstractListenNotifyClient {
+public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
     
     private PGConnection pgConn;
     private Connection conn;
     private BlockingQueue<String> queue = new ArrayBlockingQueue<>(10);
     
-    public ListenNotifyClientNonblocking() {
+    public ListenNotifyClientBlocking() {
         PGSimpleDataSource ds = new PGSimpleDataSource();
         ds.setServerNames(new String[]{"localhost"});
         ds.setDatabaseName("postgres");
@@ -28,7 +28,8 @@ public class ListenNotifyClientNonblocking extends AbstractListenNotifyClient {
         ds.setUser("postgres");
         ds.setPassword("");
         try {
-            pgConn = ds.getConnection().unwrap(org.postgresql.PGConnection.class);
+            conn = ds.getConnection();
+            pgConn = conn.unwrap(org.postgresql.PGConnection.class);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         }
