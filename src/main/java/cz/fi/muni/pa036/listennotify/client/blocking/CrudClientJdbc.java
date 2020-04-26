@@ -52,6 +52,6 @@ public class CrudClientJdbc extends CrudClient {
     }
     
     PGNotification[] getNotifications() throws SQLException {
-        return pgConn.getNotifications();
+        return pgConn.getNotifications(200);
     }
 }

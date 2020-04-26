@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.logging.Logger;
 import org.postgresql.PGNotification;
 
 /**
@@ -16,17 +17,19 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
 
     private final BlockingQueue<String> textQueue = new ArrayBlockingQueue<>(1024);
     private final BlockingQueue<String> binaryQueue = new ArrayBlockingQueue<>(1024);
-    // Loosely coupled but we have no other option here (we want to call getNotifications)
-    private final CrudClientJdbc crudClient = new CrudClientJdbc();
-
+    
     @Override
     public void run() {
+        Logger.getGlobal().info("Started listen-notify client.");
+        if(crudClient == null) {
+            throw new IllegalStateException("You must set CRUD client first before running this thread.");
+        }
         while (true) {
             try {
-                PGNotification[] notifs = crudClient.getNotifications();
+                PGNotification[] notifs = ((CrudClientJdbc)crudClient).getNotifications();
                 if (notifs != null) {
                     for(PGNotification notif : notifs) {
-                        getQueue(TableName.valueOf(notif.getName())).add(notif.getParameter());
+                        getQueue(ChannelName.valueOf(notif.getName().toUpperCase())).add(notif.getParameter());
                     }
                 }
             } catch (SQLException ex) {
@@ -35,16 +38,16 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
         }
     }
 
-    private BlockingQueue<String> getQueue(TableName tn) {
+    private BlockingQueue<String> getQueue(ChannelName tn) {
         switch(tn) {
-            case BIN: return binaryQueue;
-            case TEXT: return textQueue;
-            default: throw new IllegalArgumentException(tn + " table not supported");
+            case Q_EVENT_BIN: return binaryQueue;
+            case Q_EVENT: return textQueue;
+            default: throw new IllegalArgumentException(tn + " channel not supported");
         }
     }
     
     @Override
-    protected String nextRawJson(TableName tn) {
+    protected String nextRawJson(ChannelName tn) {
         BlockingQueue<String> queue = getQueue(tn);
         try {
             return queue.take();
@@ -54,7 +57,7 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
     }
 
     @Override
-    protected List<String> nextRawJson(TableName tn, int noElements) {
+    protected List<String> nextRawJson(ChannelName tn, int noElements) {
         BlockingQueue<String> queue = getQueue(tn);
         if (queue.size() < noElements) {
             throw new IllegalArgumentException(
