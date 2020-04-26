@@ -1,54 +1,51 @@
 package cz.fi.muni.pa036.listennotify.client.blocking;
 
 import cz.fi.muni.pa036.listennotify.api.AbstractListenNotifyClient;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
-import org.postgresql.ds.PGSimpleDataSource;
 
 /**
  *
  * @author Miloslav Zezulka
  */
 public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
-    
-    private PGConnection pgConn;
-    private Connection conn;
-    private BlockingQueue<String> queue = new ArrayBlockingQueue<>(10);
-    
-    public ListenNotifyClientBlocking() {
-        PGSimpleDataSource ds = new PGSimpleDataSource();
-        ds.setServerNames(new String[]{"localhost"});
-        ds.setDatabaseName("postgres");
-        ds.setPortNumbers(new int[]{5432});
-        ds.setUser("postgres");
-        ds.setPassword("");
-        try {
-            conn = ds.getConnection();
-            pgConn = conn.unwrap(org.postgresql.PGConnection.class);
-            new NotificationPoller(pgConn).start();
-        } catch (SQLException ex) {
-            throw new RuntimeException(ex);
+
+    private final BlockingQueue<String> textQueue = new ArrayBlockingQueue<>(1024);
+    private final BlockingQueue<String> binaryQueue = new ArrayBlockingQueue<>(1024);
+    // Loosely coupled but we have no other option here (we want to call getNotifications)
+    private final CrudClientJdbc crudClient = new CrudClientJdbc();
+
+    @Override
+    public void run() {
+        while (true) {
+            try {
+                PGNotification[] notifs = crudClient.getNotifications();
+                if (notifs != null) {
+                    for(PGNotification notif : notifs) {
+                        getQueue(TableName.valueOf(notif.getName())).add(notif.getParameter());
+                    }
+                }
+            } catch (SQLException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+    }
+
+    private BlockingQueue<String> getQueue(TableName tn) {
+        switch(tn) {
+            case BIN: return binaryQueue;
+            case TEXT: return textQueue;
+            default: throw new IllegalArgumentException(tn + " table not supported");
         }
     }
     
     @Override
-    protected Statement createStatement() {
-        try {
-            return conn.createStatement();
-        } catch (SQLException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-    
-    @Override
-    protected String nextRawJson() {
+    protected String nextRawJson(TableName tn) {
+        BlockingQueue<String> queue = getQueue(tn);
         try {
             return queue.take();
         } catch (InterruptedException ex) {
@@ -57,37 +54,15 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
     }
 
     @Override
-    protected PreparedStatement createPreparedStatement(String string) {
-        try {
-            return conn.prepareStatement(string);
-        } catch (SQLException ex) {
-            throw new RuntimeException(ex);
+    protected List<String> nextRawJson(TableName tn, int noElements) {
+        BlockingQueue<String> queue = getQueue(tn);
+        if (queue.size() < noElements) {
+            throw new IllegalArgumentException(
+                    String.format("Cannot drain event queue by the number of %d "
+                            + "since it only contains %d elements.", noElements, queue.size()));
         }
-    }
-    
-    class NotificationPoller extends Thread {
-        
-        private final PGConnection conn;
-        private final PGNotification[] EMPTY_NOTIFS = new PGNotification[]{};
-        
-        public NotificationPoller(PGConnection conn) {
-            Objects.requireNonNull(conn);
-            this.conn = conn;
-        }
-        
-        @Override
-        public void run() {
-            while (true) {
-                try {
-                    PGNotification[] notifs = conn.getNotifications();
-                    for (PGNotification notification : (notifs == null ? EMPTY_NOTIFS : notifs)) {
-                        queue.add(notification.getParameter());
-                    }
-                } catch (SQLException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-        }
-        
+        List<String> result = new ArrayList<>(noElements);
+        queue.drainTo(result, noElements);
+        return result;
     }
 }
