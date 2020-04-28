@@ -17,7 +17,6 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
 
     private final BlockingQueue<String> textQueue = new ArrayBlockingQueue<>(1024);
     private final BlockingQueue<String> binaryQueue = new ArrayBlockingQueue<>(1024);
-    private boolean running = true;
     
     @Override
     public void run() {
@@ -25,26 +24,24 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
         if(crudClient == null) {
             throw new IllegalStateException("You must set CRUD client first before running this thread.");
         }
-        running = true;
-        while (running) {
+        while (true) {
             try {
                 PGNotification[] notifs = ((CrudClientJdbc)crudClient).getNotifications();
                 if (notifs != null) {
                     for(PGNotification notif : notifs) {
-                        getQueue(ChannelName.valueOf(notif.getName().toUpperCase())).add(notif.getParameter());
+                        getQueue(ChannelName.valueOf(notif.getName().toUpperCase()))
+                                .add(notif.getParameter());
                     }
                 }
+                if (Thread.currentThread().isInterrupted()) {
+                    textQueue.clear();
+                    binaryQueue.clear();
+                    return;
+                 }
             } catch (SQLException ex) {
                 throw new RuntimeException(ex);
             }
         }
-    }
-    
-    @Override
-    public void shutdown() {
-        running = false;
-        textQueue.clear();
-        binaryQueue.clear();
     }
 
     private BlockingQueue<String> getQueue(ChannelName tn) {
