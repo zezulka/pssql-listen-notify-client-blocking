@@ -15,8 +15,8 @@ import org.postgresql.PGNotification;
  */
 public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
 
-    private final BlockingQueue<String> textQueue = new ArrayBlockingQueue<>(1024);
-    private final BlockingQueue<String> binaryQueue = new ArrayBlockingQueue<>(1024);
+    private final BlockingQueue<String> textQueue = new ArrayBlockingQueue<>(1024*1024);
+    private final BlockingQueue<String> binaryQueue = new ArrayBlockingQueue<>(1024*1024);
     
     @Override
     public void run() {

@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.logging.Logger;
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -34,6 +35,11 @@ public class CrudClientJdbc extends CrudClient {
     }
     
     @Override
+    protected Connection getConnection() {
+        return conn;
+    }
+    
+    @Override
     protected Statement createStatement() {
         try {
             return conn.createStatement();
@@ -44,6 +50,7 @@ public class CrudClientJdbc extends CrudClient {
     
     @Override
     protected PreparedStatement createPreparedStatement(String string) {
+        Logger.getGlobal().info(String.format("Creating prepared statement for the query '%s'...", string));
         try {
             return conn.prepareStatement(string);
         } catch (SQLException ex) {
@@ -52,6 +59,6 @@ public class CrudClientJdbc extends CrudClient {
     }
     
     PGNotification[] getNotifications() throws SQLException {
-        return pgConn.getNotifications(200);
+        return pgConn.getNotifications();
     }
 }
