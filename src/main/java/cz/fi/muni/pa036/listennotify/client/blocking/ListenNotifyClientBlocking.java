@@ -1,6 +1,7 @@
 package cz.fi.muni.pa036.listennotify.client.blocking;
 
 import cz.fi.muni.pa036.listennotify.api.AbstractListenNotifyClient;
+import cz.fi.muni.pa036.listennotify.api.event.EventType;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ public class ListenNotifyClientBlocking extends AbstractListenNotifyClient {
             try {
                 PGNotification[] notifs = ((CrudClientJdbc)crudClient).getNotifications();
                 if (notifs != null) {
+                    Logger.getGlobal().info(Thread.currentThread().getName() + ": got " + notifs.length + " notifs");
                     for(PGNotification notif : notifs) {
                         getQueue(ChannelName.valueOf(notif.getName().toUpperCase()))
                                 .add(notif.getParameter());

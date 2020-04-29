@@ -20,6 +20,7 @@ public class CrudClientJdbc extends CrudClient {
     private Connection conn;
     
     public CrudClientJdbc() {
+        Logger.getGlobal().info(Thread.currentThread().getName() + " just created a new DS");
         PGSimpleDataSource ds = new PGSimpleDataSource();
         ds.setServerNames(new String[]{"localhost"});
         ds.setDatabaseName("postgres");
